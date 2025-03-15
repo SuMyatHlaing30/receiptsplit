@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReceiptSplit - Scan & Split Receipts</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-receipt"></i>
+                <h1>ReceiptSplit</h1>
+            </div>
+        </header>
+
+        <main>
+            <div class="scan-section card">
+                <h2><i class="fas fa-camera"></i> Scan Receipt</h2>
+                <div class="photo-upload-area">
+                    <input type="file" id="receipt-photo" accept="image/*" capture="camera">
+                    <label for="receipt-photo" class="upload-label">
+                        <i class="fas fa-camera-retro"></i>
+                        <span>Take a photo or upload receipt</span>
+                    </label>
+                </div>
+                <div id="photo-preview"></div>
+                <div class="settings-section">
+                    <div class="settings-row">
+                        <div class="language-selector">
+                            <label for="ocr-language">OCR Language:</label>
+                            <select id="ocr-language">
+                                <option value="eng">English</option>
+                                <option value="jpn">Japanese</option>
+                                <option value="eng+jpn">English + Japanese</option>
+                            </select>
+                        </div>
+                        
+                        <div class="currency-selector">
+                            <label for="currency-symbol">Currency:</label>
+                            <select id="currency-symbol">
+                                <option value="$">$ (USD)</option>
+                                <option value="¥" selected>¥ (JPY)</option>
+                                <option value="€">€ (EUR)</option>
+                                <option value="£">£ (GBP)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div id="loading-indicator" class="hidden">
+                    <div class="spinner"></div>
+                    <p>Processing receipt... This may take a few moments.</p>
+                    <div id="progress-bar">
+                        <div id="progress"></div>
+                    </div>
+                </div>
+                <button id="process-photo" class="primary-btn" disabled>
+                    <i class="fas fa-scanner"></i> Scan Receipt
+                </button>
+            </div>
+
+            <!-- OCR Debug Output (initially hidden) -->
+            <div id="ocr-debug" class="card hidden">
+                <h3>OCR Debug Output</h3>
+                <div class="debug-controls">
+                    <button id="toggle-debug" class="secondary-btn">
+                        <i class="fas fa-code"></i> Hide Raw Text
+                    </button>
+                </div>
+                <pre id="ocr-debug-output" class="code-output"></pre>
+            </div>
+
+            <div class="items-section card">
+                <h2><i class="fas fa-list"></i> Detected Items</h2>
+                <div class="tax-settings">
+                    <label for="tax-rate">Tax Rate (%): </label>
+                    <input type="number" id="tax-rate" value="10" min="0" max="30" step="0.1">
+                    <button id="apply-tax" class="small-btn">Apply</button>
+                    <span class="tax-info" id="tax-info">10% tax is applied automatically to the total</span>
+                </div>
+                <div class="controls">
+                    <button id="add-missing-item" class="secondary-btn">
+                        <i class="fas fa-plus"></i> Add Missing Item
+                    </button>
+                    <button id="edit-mode" class="secondary-btn">
+                        <i class="fas fa-edit"></i> Edit Items
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table id="items-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Price</th>
+                                <th>Mine</th>
+                                <th>Friend's</th>
+                                <th>Shared</th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-body">
+                            <!-- Items will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Hidden form for adding missing items -->
+                <div id="add-item-form" class="hidden">
+                    <h3>Add Item</h3>
+                    <div class="input-group">
+                        <input type="text" id="item-name" placeholder="Item name">
+                        <input type="number" id="item-price" placeholder="Price" step="0.01">
+                        <div class="form-buttons">
+                            <button id="save-item" class="primary-btn">Add</button>
+                            <button id="cancel-add" class="secondary-btn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="totals-section card">
+                <h2><i class="fas fa-calculator"></i> Split Summary</h2>
+                <div class="totals-grid">
+                    <div class="total-box mine">
+                        <h3>My Items</h3>
+                        <div class="amount" id="my-subtotal">¥0</div>
+                        <div class="tax-note">+ Tax: <span id="my-tax">¥0</span></div>
+                        <div class="total-amount">Total: <span id="my-total">¥0</span></div>
+                    </div>
+                    <div class="total-box friend">
+                        <h3>Friend's Items</h3>
+                        <div class="amount" id="friend-subtotal">¥0</div>
+                        <div class="tax-note">+ Tax: <span id="friend-tax">¥0</span></div>
+                        <div class="total-amount">Total: <span id="friend-total">¥0</span></div>
+                    </div>
+                </div>
+
+                <div class="receipt-total">
+                    <span>Receipt Total: <span id="receipt-total">¥0</span></span>
+                </div>
+                
+                <div class="actions">
+                    <button id="clear-items" class="danger-btn">
+                        <i class="fas fa-trash"></i> Clear All
+                    </button>
+                    <button id="save-receipt" class="primary-btn">
+                        <i class="fas fa-save"></i> Save Receipt
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <div class="history-section card">
+            <h2><i class="fas fa-history"></i> Receipt History</h2>
+            <div class="history-list-container">
+                <ul id="history-list">
+                    <!-- History items will be added here -->
+                </ul>
+            </div>
+        </div>
+
+        <footer>
+            <p>ReceiptSplit - Split bills easily with friends</p>
+        </footer>
+    </div>
+
+    <div id="snackbar"></div>
+
+    <script>
+    // Toggle debug output visibility
+    document.addEventListener('DOMContentLoaded', function() {
+        const debugToggle = document.getElementById('toggle-debug');
+        if (debugToggle) {
+            debugToggle.addEventListener('click', function() {
+                const debugOutput = document.getElementById('ocr-debug-output');
+                if (debugOutput.style.display === 'none') {
+                    debugOutput.style.display = 'block';
+                    this.innerHTML = '<i class="fas fa-code"></i> Hide Raw Text';
+                } else {
+                    debugOutput.style.display = 'none';
+                    this.innerHTML = '<i class="fas fa-code"></i> Show Raw Text';
+                }
+            });
+        }
+    });
+    </script>
+
+    <script src="script.js"></script>
+</body>
+</html>

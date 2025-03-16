@@ -5,8 +5,8 @@ let isEditMode = false;
 let taxRate = 8; // Default tax rate for Japan (8%)
 
 // Azure OpenAI Vision settings
-let AZURE_OPENAI_API_KEY = ""; // Will be loaded from localStorage
-let AZURE_OPENAI_ENDPOINT = ""; // Will be loaded from localStorage
+let AZURE_OPENAI_API_KEY = "D7vLfPfPfqGAWvR7yMYLc7h1imkHgjNASZW3RK68ac8JIjtUeHCjJQQJ99BCACYeBjFXJ3w3AAABACOG7BbZ"; // Will be loaded from localStorage
+let AZURE_OPENAI_ENDPOINT = "https://smhazureopenai.openai.azure.com/"; // Will be loaded from localStorage
 let AZURE_OPENAI_MODEL = "gpt-4o"; // Default model - can be changed if needed
 const AZURE_API_VERSION = "2024-02-15-preview"; // API Version
 
@@ -818,8 +818,7 @@ function loadSavedReceipts() {
 
 // Function to save Azure API settings
 function saveApiSettings() {
-    const endpoint = document.getElementById('azure-endpoint').value.trim();
-    const apiKey = document.getElementById('azure-key').value.trim();
+
     const model = document.getElementById('azure-model').value.trim();
     
     if (!endpoint || !apiKey) {
@@ -827,9 +826,7 @@ function saveApiSettings() {
         return;
     }
     
-    // Save to global variables
-    AZURE_OPENAI_ENDPOINT = endpoint;
-    AZURE_OPENAI_API_KEY = apiKey;
+
     
     if (model) {
         AZURE_OPENAI_MODEL = model;

@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('cancel-add').addEventListener('click', hideAddItemForm);
     document.getElementById('edit-mode').addEventListener('click', toggleEditMode);
     document.getElementById('apply-tax').addEventListener('click', applyTaxRate);
-    document.getElementById('save-api-settings').addEventListener('click', saveApiSettings);
+    document.getElementById('save-api-settings') && document.getElementById('save-api-settings').addEventListener('click', saveApiSettings);
     
     // Initialize tax rate from input
     document.getElementById('tax-rate').value = taxRate;
@@ -38,37 +38,42 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load Azure API settings if they exist
     loadApiSettings();
     
-    // Photo upload handling
+    // Photo upload and camera handling - simpler approach
     const photoInput = document.getElementById('receipt-photo');
-   // Photo upload and camera handling
-    const photoInput = document.getElementById('receipt-photo');
+    const uploadButton = document.getElementById('upload-button');
     const cameraButton = document.getElementById('camera-button');
-
-    // Handle file selection from gallery
-    photoInput.addEventListener('change', function(e) {
-        if (e.target.files && e.target.files[0]) {
-            handleSelectedImage(e.target.files[0]);
-        }
-    });
-
+    
+    // Handle file selection changes
+    if (photoInput) {
+        photoInput.addEventListener('change', function(e) {
+            if (e.target.files && e.target.files[0]) {
+                handleSelectedImage(e.target.files[0]);
+                // Reset the input value to allow selecting the same file again
+                // (useful for repeated testing)
+                this.value = '';
+            }
+        });
+    }
+    
+    // Handle upload button click
+    if (uploadButton) {
+        uploadButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (photoInput) {
+                photoInput.removeAttribute('capture'); // Remove capture attribute
+                photoInput.click();
+            }
+        });
+    }
+    
     // Handle camera button click
     if (cameraButton) {
-        cameraButton.addEventListener('click', function() {
-            // Create a temporary input with camera capture
-            const tempInput = document.createElement('input');
-            tempInput.type = 'file';
-            tempInput.accept = 'image/*';
-            tempInput.capture = 'camera';
-            
-            // Listen for file selection
-            tempInput.addEventListener('change', function(e) {
-                if (e.target.files && e.target.files[0]) {
-                    handleSelectedImage(e.target.files[0]);
-                }
-            });
-            
-            // Trigger file selection dialog with camera
-            tempInput.click();
+        cameraButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (photoInput) {
+                photoInput.setAttribute('capture', 'camera'); // Add capture attribute
+                photoInput.click();
+            }
         });
     }
     
@@ -76,24 +81,31 @@ document.addEventListener('DOMContentLoaded', function() {
     loadSavedReceipts();
 });
 
-// Process the selected image
+// Process the selected image - more compatible version
 function handleSelectedImage(file) {
     const reader = new FileReader();
     
     reader.onload = function(e) {
         const previewDiv = document.getElementById('photo-preview');
-        previewDiv.innerHTML = `<img src="${e.target.result}" alt="Receipt preview">`;
-        document.getElementById('process-photo').disabled = false;
-    }
+        if (previewDiv) {
+            previewDiv.innerHTML = `<img src="${e.target.result}" alt="Receipt preview">`;
+            const processButton = document.getElementById('process-photo');
+            if (processButton) {
+                processButton.disabled = false;
+            }
+        }
+        
+        // Store the file reference globally for later processing
+        window.selectedReceiptFile = file;
+    };
+    
+    reader.onerror = function(error) {
+        console.error('Error reading file:', error);
+        alert('Error reading the selected image. Please try again.');
+    };
     
     reader.readAsDataURL(file);
-    
-    // Store the file in the regular input for later processing
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
-    document.getElementById('receipt-photo').files = dataTransfer.files;
 }
-
 // Function to apply the tax rate
 function applyTaxRate() {
     const newTaxRate = parseFloat(document.getElementById('tax-rate').value);

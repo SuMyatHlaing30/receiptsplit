@@ -22,11 +22,17 @@
             <div class="scan-section card">
                 <h2><i class="fas fa-camera"></i> Scan Receipt</h2>
                 <div class="photo-upload-area">
-                    <input type="file" id="receipt-photo" accept="image/*" capture="camera">
-                    <label for="receipt-photo" class="upload-label">
-                        <i class="fas fa-camera-retro"></i>
-                        <span>Take a photo or upload receipt</span>
-                    </label>
+                    <input type="file" id="receipt-photo" accept="image/*">
+    <div class="upload-options">
+        <label for="receipt-photo" class="upload-label">
+            <i class="fas fa-images"></i>
+            <span>Upload Photo</span>
+        </label>
+        <button id="camera-button" class="camera-btn">
+            <i class="fas fa-camera-retro"></i>
+            <span>Take Photo</span>
+        </button>
+    </div>
                 </div>
                 <div id="photo-preview"></div>
                 <div class="settings-section">

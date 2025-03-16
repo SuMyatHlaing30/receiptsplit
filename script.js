@@ -40,24 +40,59 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Photo upload handling
     const photoInput = document.getElementById('receipt-photo');
-    
+   // Photo upload and camera handling
+    const photoInput = document.getElementById('receipt-photo');
+    const cameraButton = document.getElementById('camera-button');
+
+    // Handle file selection from gallery
     photoInput.addEventListener('change', function(e) {
         if (e.target.files && e.target.files[0]) {
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                const previewDiv = document.getElementById('photo-preview');
-                previewDiv.innerHTML = `<img src="${e.target.result}" alt="Receipt preview">`;
-                document.getElementById('process-photo').disabled = false;
-            }
-            
-            reader.readAsDataURL(e.target.files[0]);
+            handleSelectedImage(e.target.files[0]);
         }
     });
+
+    // Handle camera button click
+    if (cameraButton) {
+        cameraButton.addEventListener('click', function() {
+            // Create a temporary input with camera capture
+            const tempInput = document.createElement('input');
+            tempInput.type = 'file';
+            tempInput.accept = 'image/*';
+            tempInput.capture = 'camera';
+            
+            // Listen for file selection
+            tempInput.addEventListener('change', function(e) {
+                if (e.target.files && e.target.files[0]) {
+                    handleSelectedImage(e.target.files[0]);
+                }
+            });
+            
+            // Trigger file selection dialog with camera
+            tempInput.click();
+        });
+    }
     
     // Load saved receipts from local storage
     loadSavedReceipts();
 });
+
+// Process the selected image
+function handleSelectedImage(file) {
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        const previewDiv = document.getElementById('photo-preview');
+        previewDiv.innerHTML = `<img src="${e.target.result}" alt="Receipt preview">`;
+        document.getElementById('process-photo').disabled = false;
+    }
+    
+    reader.readAsDataURL(file);
+    
+    // Store the file in the regular input for later processing
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    document.getElementById('receipt-photo').files = dataTransfer.files;
+}
 
 // Function to apply the tax rate
 function applyTaxRate() {

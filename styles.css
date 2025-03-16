@@ -769,3 +769,58 @@ footer {
     margin-bottom: 10px;
     text-align: right;
 }
+/* Upload and Camera Button Styles */
+.upload-options {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin: 15px 0;
+}
+
+.upload-label, .camera-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 15px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 130px;
+    height: 120px;
+    text-align: center;
+}
+
+.upload-label {
+    background-color: rgba(76, 201, 240, 0.1);
+    border: 2px dashed var(--primary-light);
+}
+
+.camera-btn {
+    background-color: rgba(114, 9, 183, 0.1);
+    border: 2px dashed var(--secondary-color);
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: normal;
+}
+
+.upload-label:hover, .camera-btn:hover {
+    transform: translateY(-3px);
+}
+
+.upload-label i, .camera-btn i {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.upload-label i {
+    color: var(--primary-color);
+}
+
+.camera-btn i {
+    color: var(--secondary-color);
+}
+
+.upload-label span, .camera-btn span {
+    font-weight: 500;
+}

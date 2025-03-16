@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -21,7 +22,7 @@
             <div class="scan-section card">
                 <h2><i class="fas fa-camera"></i> Scan Receipt</h2>
                 <div class="photo-upload-area">
-                    <input type="file" id="receipt-photo" accept="image/*" capture="camera">
+                    <input type="file" id="receipt-photo" accept="image/*">
                     <label for="receipt-photo" class="upload-label">
                         <i class="fas fa-camera-retro"></i>
                         <span>Take a photo or upload receipt</span>
@@ -33,9 +34,9 @@
                         <div class="language-selector">
                             <label for="ocr-language">OCR Language:</label>
                             <select id="ocr-language">
-                                <option value="en">English</option>
-                                <option value="ja" selected>Japanese</option>
-                                <option value="en+ja">English + Japanese</option>
+                                <option value="eng">English</option>
+                                <option value="jpn">Japanese</option>
+                                <option value="eng+jpn">English + Japanese</option>
                             </select>
                         </div>
                         
@@ -50,32 +51,6 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- API Key Settings -->
-                <div class="api-settings">
-                    <details>
-                        <summary>Azure OpenAI Vision Settings</summary>
-                        <div class="api-form">
-                            <div class="input-group">
-                                <label for="azure-endpoint">Azure OpenAI Endpoint:</label>
-                                <input type="text" id="azure-endpoint" placeholder="https://your-resource.openai.azure.com/">
-                            </div>
-                            <div class="input-group">
-                                <label for="azure-key">API Key:</label>
-                                <input type="password" id="azure-key" placeholder="Enter your Azure OpenAI API key">
-                            </div>
-                            <div class="input-group">
-                                <label for="azure-model">Model Deployment Name:</label>
-                                <input type="text" id="azure-model" placeholder="gpt-4o" value="gpt-4o">
-                                <div class="model-info">Use the deployment name of your vision-capable model (e.g., gpt-4o, gpt-4-vision)</div>
-                            </div>
-                            <button id="save-api-settings" class="secondary-btn">
-                                <i class="fas fa-save"></i> Save Settings
-                            </button>
-                        </div>
-                    </details>
-                </div>
-                
                 <div id="loading-indicator" class="hidden">
                     <div class="spinner"></div>
                     <p>Processing receipt... This may take a few moments.</p>
@@ -214,3 +189,5 @@
     </script>
 
     <script src="script.js"></script>
+</body>
+</html>

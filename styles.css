@@ -618,3 +618,154 @@ footer {
         padding: 8px;
     }
 }
+/* API Settings Styles */
+.api-settings {
+    margin: 15px 0;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--light-gray);
+    overflow: hidden;
+}
+
+.api-settings summary {
+    padding: 10px;
+    cursor: pointer;
+    background-color: var(--light-gray);
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.api-settings summary:hover {
+    background-color: #d1d1d1;
+}
+
+.api-form {
+    padding: 15px;
+    background-color: #f8f9fa;
+}
+
+.api-form .input-group {
+    margin-bottom: 12px;
+}
+
+.api-form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.api-form input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    font-size: 0.9rem;
+}
+
+.model-info {
+    font-size: 0.8rem;
+    color: var(--gray-color);
+    margin-top: 5px;
+    font-style: italic;
+}
+
+/* Settings Row */
+.settings-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: space-between;
+}
+
+.settings-row > div {
+    flex: 1;
+    min-width: 200px;
+}
+
+/* Debug Output */
+.code-output {
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    padding: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+
+.debug-controls {
+    margin-bottom: 10px;
+    text-align: right;
+}
+
+@media (max-width: 480px) {
+    .settings-row {
+        flex-direction: column;
+    }
+}
+/* Discount related styles */
+.separator-row {
+    background-color: #f5f5f5;
+    color: #444;
+    font-weight: bold;
+    text-align: center;
+    border-bottom: 1px solid #ddd;
+}
+
+/* Discount related styles */
+.discount-item {
+    color: #e63946; /* Red color for discounts */
+}
+
+/* Model info style */
+.model-info {
+    font-size: 0.8rem;
+    color: var(--gray-color);
+    margin-top: 5px;
+    font-style: italic;
+}
+
+/* API settings section styles */
+.api-settings {
+    margin: 15px 0;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--light-gray);
+    overflow: hidden;
+}
+
+.api-settings summary {
+    padding: 10px;
+    cursor: pointer;
+    background-color: var(--light-gray);
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.api-settings summary:hover {
+    background-color: #d1d1d1;
+}
+
+.api-form {
+    padding: 15px;
+    background-color: #f8f9fa;
+}
+
+/* OCR Debug Output styles */
+.code-output {
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    padding: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+
+.debug-controls {
+    margin-bottom: 10px;
+    text-align: right;
+}

@@ -2,7 +2,13 @@
 let items = [];
 let receipts = [];
 let isEditMode = false;
-let taxRate = 10; // Default tax rate for Japan (10%)
+let taxRate = 8; // Default tax rate for Japan (8%)
+
+// Azure OpenAI Vision settings
+let AZURE_OPENAI_API_KEY = ""; // Will be loaded from localStorage
+let AZURE_OPENAI_ENDPOINT = ""; // Will be loaded from localStorage
+let AZURE_OPENAI_MODEL = "gpt-4o"; // Default model - can be changed if needed
+const AZURE_API_VERSION = "2024-02-15-preview"; // API Version
 
 // DOM elements
 document.addEventListener('DOMContentLoaded', function() {
@@ -15,9 +21,11 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('cancel-add').addEventListener('click', hideAddItemForm);
     document.getElementById('edit-mode').addEventListener('click', toggleEditMode);
     document.getElementById('apply-tax').addEventListener('click', applyTaxRate);
+    document.getElementById('save-api-settings').addEventListener('click', saveApiSettings);
     
     // Initialize tax rate from input
     document.getElementById('tax-rate').value = taxRate;
+    document.getElementById('tax-info').textContent = `${taxRate}% tax is applied automatically to the total`;
     
     // Initialize currency selector if it exists
     if (document.getElementById('currency-symbol')) {
@@ -26,6 +34,9 @@ document.addEventListener('DOMContentLoaded', function() {
             updateTotals();
         });
     }
+    
+    // Load Azure API settings if they exist
+    loadApiSettings();
     
     // Photo upload handling
     const photoInput = document.getElementById('receipt-photo');
@@ -65,12 +76,19 @@ function applyTaxRate() {
     showSnackbar(`Tax rate updated to ${taxRate}%`);
 }
 
-// Function to process the receipt image using Tesseract OCR
+// Function to process the receipt image using Azure OpenAI Vision
 async function processReceiptImage() {
     const photoInput = document.getElementById('receipt-photo');
     
     if (!photoInput.files || !photoInput.files[0]) {
         showSnackbar('Please upload a receipt image first');
+        return;
+    }
+    
+    // Check if Azure API settings are configured
+    if (!AZURE_OPENAI_API_KEY || !AZURE_OPENAI_ENDPOINT) {
+        showSnackbar('Please configure your Azure OpenAI API settings first');
+        document.querySelector('.api-settings details').setAttribute('open', '');
         return;
     }
     
@@ -80,202 +98,318 @@ async function processReceiptImage() {
     
     // Progress display
     const progressElement = document.getElementById('progress');
+    progressElement.style.width = '30%'; // Initial progress
     
     try {
-        // Get language setting if available
+        // Get language selection
         const language = document.getElementById('ocr-language') ? 
-            document.getElementById('ocr-language').value : 'eng';
+            document.getElementById('ocr-language').value : 'en';
         
-        // Using the proper Tesseract.js v4 API
-        const result = await Tesseract.recognize(
-            photoInput.files[0],
-            language,
-            {
-                logger: m => {
-                    console.log(m);
-                    if (m.status === 'recognizing text') {
-                        progressElement.style.width = `${m.progress * 100}%`;
-                    }
-                }
-            }
-        );
-        
-        console.log('OCR Result:', result);
-        
-        // Show OCR output in debug area if it exists
-        if (document.getElementById('ocr-debug-output')) {
-            document.getElementById('ocr-debug-output').textContent = result.data.text;
-            document.getElementById('ocr-debug').classList.remove('hidden');
-        }
-        
-        // Process the OCR result
-        parseJapaneseReceiptText(result.data.text);
-        
-    } catch (error) {
-        console.error('OCR Error:', error);
-        showSnackbar('Error processing the receipt. Please try again with a clearer image');
-    } finally {
-        // Hide loading indicator
-        loadingIndicator.classList.add('hidden');
-    }
-}
-
-// Function to parse Japanese receipt text (including translated to English)
-function parseJapaneseReceiptText(text) {
-    // Split by lines
-    const lines = text.split('\n').filter(line => line.trim() !== '');
-    console.log('Lines detected:', lines);
-    
-    // Reset items array
-    items = [];
-    
-    // Patterns to find prices and items
-    const pricePatterns = [
-        /[¥￥](\d[\d,]*)/,                  // ¥ followed by digits
-        /(\d+)\s*[¥￥]/,                    // digits followed by ¥
-        /[¥￥]\s*(\d[\d,]*)/,               // ¥ and digits with possible space
-        /[¥￥]\s*([\d,]+\.\d{2})/,          // ¥ and decimal (rare in JPY)
-        /-[¥￥]\s*(\d[\d,]*)/,              // negative prices (discounts)
-        /-(\d[\d,]*)/                       // just negative number
-    ];
-    
-    // Process each line
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        
-        // Skip very short lines or lines that look like headers/totals
-        if (line.length < 3) {
-            continue;
-        }
-        
-        // Skip lines that look like totals, subtotals, or other non-item lines
-        if (/total|subtotal|tax|sum|discount|credit|register/i.test(line) && 
-            !/discount.*\d+%/.test(line)) { // Keep discount lines with percent
-            continue;
-        }
-        
-        // Try to find price using multiple patterns
-        let priceMatch = null;
-        let matchedPattern = null;
-        let price = null;
-        
-        for (const pattern of pricePatterns) {
-            priceMatch = line.match(pattern);
-            if (priceMatch) {
-                matchedPattern = pattern;
-                break;
-            }
-        }
-        
-        // If we found a price match
-        if (priceMatch) {
-            // Extract the price - remove commas and convert to number
-            const priceStr = priceMatch[1].replace(/,/g, '');
-            price = parseFloat(priceStr);
+        // Get currency symbol
+        const currencySymbol = document.getElementById('currency-symbol') ? 
+            document.getElementById('currency-symbol').value : '¥';
             
-            // For negative patterns, make the price negative
-            if (matchedPattern.toString().includes('-') && price > 0) {
-                price = -price;
-            }
+        // Convert the image to base64
+        const file = photoInput.files[0];
+        const base64Image = await getBase64(file);
+        
+        // Update progress
+        progressElement.style.width = '50%';
+        
+        // Call Azure OpenAI Vision API
+        const result = await callAzureOpenAIVision(base64Image, language, currencySymbol);
+        
+        // Update progress
+        progressElement.style.width = '90%';
+        
+        // Process the extracted items
+        if (result.items && result.items.length > 0) {
+            // Clear existing items
+            items = [];
             
-            // Find where the price appears in the line
-            const priceIndex = line.indexOf(priceMatch[0]);
-            
-            // Extract item name based on price position
-            let itemName = '';
-            if (priceIndex > 0) {
-                // If price is on the right (typical), item name is before it
-                itemName = line.substring(0, priceIndex).trim();
-            } else if (priceIndex === 0 && i > 0) {
-                // If price is at the start, item might be on previous line
-                itemName = lines[i-1].trim();
-            }
-            
-            // Clean up item name
-            itemName = cleanupItemName(itemName);
-            
-            // For discounts
-            const isDiscount = price < 0 || /discount/i.test(itemName);
-            
-            // Add to items if we have both name and price
-            if (itemName && !isNaN(price)) {
+            // Add the extracted items
+            result.items.forEach(item => {
                 items.push({
                     id: Date.now() + Math.random(), // Unique ID
-                    name: isDiscount ? "Discount" : itemName,
-                    price: price,
+                    name: item.name,
+                    price: item.price,
+                    isDiscount: item.price < 0 || (item.name && item.name.toLowerCase().includes('discount')),
                     isMine: false,
                     isFriend: false,
                     isShared: false
                 });
-            }
-        } else {
-            // Try to find numbers at the end of the line (likely prices)
-            const numberMatch = line.match(/(\d[\d,]+)(?:\s*)$/);
-            if (numberMatch) {
-                const priceCandidate = parseFloat(numberMatch[1].replace(/,/g, ''));
-                
-                if (!isNaN(priceCandidate) && priceCandidate > 0 && priceCandidate < 100000) {
-                    // This is likely a price without a ¥ symbol
-                    const priceIndex = line.lastIndexOf(numberMatch[1]);
-                    let itemName = line.substring(0, priceIndex).trim();
-                    
-                    // Clean up item name
-                    itemName = cleanupItemName(itemName);
-                    
-                    if (itemName) {
-                        items.push({
-                            id: Date.now() + Math.random(),
-                            name: itemName,
-                            price: priceCandidate,
-                            isMine: false,
-                            isFriend: false,
-                            isShared: false
-                        });
-                    }
-                }
-            }
-        }
-    }
-    
-    // Fallback: scan for item-price patterns on adjacent lines
-    if (items.length === 0) {
-        for (let i = 0; i < lines.length - 1; i++) {
-            const currentLine = lines[i].trim();
-            const nextLine = lines[i + 1].trim();
+            });
             
-            // If current line doesn't have numbers but next line is just a number
-            if (!/\d/.test(currentLine) && /^[¥￥]?\s*\d+(\.\d{2})?$/.test(nextLine)) {
-                const priceStr = nextLine.replace(/[¥￥\s]/g, '');
-                const price = parseFloat(priceStr);
+            // Update the display
+            renderItems();
+            updateTotals();
+            
+            // Show notification
+            const regularItems = result.items.filter(item => 
+                !(item.price < 0 || (item.name && item.name.toLowerCase().includes('discount'))));
+            const discountItems = result.items.filter(item => 
+                item.price < 0 || (item.name && item.name.toLowerCase().includes('discount')));
                 
-                if (!isNaN(price) && price > 0) {
-                    const itemName = cleanupItemName(currentLine);
-                    
-                    if (itemName) {
-                        items.push({
-                            id: Date.now() + Math.random(),
-                            name: itemName,
-                            price: price,
-                            isMine: false,
-                            isFriend: false,
-                            isShared: false
-                        });
-                    }
+            showSnackbar(`Detected ${regularItems.length} items and ${discountItems.length} discounts. Please check and assign them.`);
+        } else {
+            showSnackbar('No items could be detected. Try uploading a clearer image or add items manually');
+        }
+        
+        // Show full extracted text in debug area if it exists
+        if (document.getElementById('ocr-debug-output') && result.fullText) {
+            document.getElementById('ocr-debug-output').textContent = result.fullText;
+            document.getElementById('ocr-debug').classList.remove('hidden');
+        }
+        
+        // Complete progress
+        progressElement.style.width = '100%';
+        
+    } catch (error) {
+        console.error('Vision API Error:', error);
+        showSnackbar('Error processing the receipt. Please check your Azure API settings or try again with a clearer image');
+    } finally {
+        // Hide loading indicator after a short delay
+        setTimeout(() => {
+            loadingIndicator.classList.add('hidden');
+            progressElement.style.width = '0%';
+        }, 500);
+    }
+}
+
+// Helper function to convert file to base64
+function getBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+            // Get the complete base64 string with data URL prefix
+            resolve(reader.result);
+        };
+        reader.onerror = error => reject(error);
+    });
+}
+
+// Function to call Azure OpenAI Vision API
+async function callAzureOpenAIVision(base64Image, language, currencySymbol) {
+    // Create a specific prompt for receipt analysis based on language and currency
+    let prompt = `This is a receipt image. Please analyze it and extract all items with their prices. `;
+    
+    if (language === 'ja') {
+        prompt += `This is a Japanese receipt. `;
+    } else if (language === 'en+ja') {
+        prompt += `This receipt may contain both English and Japanese text. `;
+    }
+    
+    prompt += `The currency is ${currencySymbol}. `;
+    prompt += `Return a JSON object with:
+    1. "items": an array of objects, each with "name" (string) and "price" (number) properties
+    2. "fullText": the full extracted text
+    
+    IMPORTANT: Please identify and include any discounts as separate items with negative prices.
+    For percentage discounts, include the percentage in the item name (e.g., "Discount (20%)").
+    Look for discount lines with words like "値引", "discount", "off", etc.
+    
+    Only include actual purchasable items in the "items" array, not subtotals, totals, or tax lines.
+    Format all prices as numbers without the currency symbol.
+    For Japanese receipts, be careful about signs and symbols that might look similar but have different meanings.
+    
+    Maintain the same order of items as they appear on the receipt.`;
+    
+    try {
+        // Prepare the request payload - using the structure matching Azure OpenAI client
+        const payload = {
+            messages: [
+                { role: "system", content: "You are a helpful assistant specialized in analyzing receipts." },
+                {
+                    role: "user",
+                    content: [
+                        { type: "text", text: prompt },
+                        { type: "image_url", image_url: { url: base64Image } }
+                    ]
                 }
+            ],
+            max_tokens: 2000
+        };
+        
+        // Send request to Azure OpenAI API
+        const response = await fetch(`${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_MODEL}/chat/completions?api-version=${AZURE_API_VERSION}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'api-key': AZURE_OPENAI_API_KEY
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Azure OpenAI API error: ${response.status} - ${errorText}`);
+        }
+        
+        const responseData = await response.json();
+        
+        // Extract the assistant's response
+        if (responseData.choices && responseData.choices.length > 0) {
+            const content = responseData.choices[0].message.content;
+            
+            // Parse JSON from the response
+            try {
+                // Look for JSON object in the response
+                const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
+                                 content.match(/```([\s\S]*?)```/) ||
+                                 content.match(/\{[\s\S]*?\}/);
+                
+                if (jsonMatch) {
+                    // Extract the JSON part and parse it
+                    const jsonStr = jsonMatch[1] || jsonMatch[0];
+                    const parsedData = JSON.parse(jsonStr);
+                    
+                    // Check if the AI already extracted discounts
+                    // If not, look for discount information in the full text
+                    const hasDiscounts = parsedData.items && parsedData.items.some(item => 
+                        (item.price < 0) || 
+                        (item.name && item.name.toLowerCase().includes('discount')));
+                        
+                    if (!hasDiscounts && parsedData.fullText) {
+                        const fullText = parsedData.fullText;
+                        const discountLines = fullText.split('\n')
+                            .filter(line => 
+                                line.includes('値引') || 
+                                line.includes('discount') || 
+                                line.toLowerCase().includes('off') ||
+                                (line.includes('-') && /\d+/.test(line)))
+                            .map(line => {
+                                // Extract discount amount and percentage if available
+                                const amountMatch = line.match(/¥(\d+)/) || 
+                                                   line.match(/(\d+)円/) || 
+                                                   line.match(/-\s*(\d+)/) || 
+                                                   null;
+                                const percentMatch = line.match(/(\d+)%/) || null;
+                                
+                                return {
+                                    line: line,
+                                    amount: amountMatch ? parseInt(amountMatch[1]) : null,
+                                    percentage: percentMatch ? parseInt(percentMatch[1]) : null,
+                                    isPercentage: percentMatch !== null
+                                };
+                            });
+                        
+                        // If we found discounts, add them to the items array
+                        if (discountLines.length > 0) {
+                            // First, ensure we have an items array
+                            const items = parsedData.items || [];
+                            
+                            // Then add discount items
+                            discountLines.forEach(discount => {
+                                if (discount.amount) {
+                                    items.push({
+                                        name: discount.isPercentage ? 
+                                            `Discount (${discount.percentage}%)` : 
+                                            "Discount",
+                                        price: -discount.amount,
+                                        isDiscount: true
+                                    });
+                                }
+                            });
+                            
+                            // Update the parsed data
+                            parsedData.items = items;
+                        }
+                    }
+                    
+                    return parsedData;
+                } else {
+                    // Try to parse the whole response as JSON
+                    return JSON.parse(content);
+                }
+            } catch (jsonError) {
+                console.error('Error parsing JSON from response:', jsonError);
+                // Fallback approach: If JSON parsing fails, try to extract information manually
+                return extractItemsManually(content, currencySymbol);
+            }
+        }
+        
+        throw new Error('No valid response from Azure OpenAI');
+        
+    } catch (error) {
+        console.error('Azure OpenAI Vision API call failed:', error);
+        throw error;
+    }
+}
+
+// Fallback function to extract items manually if JSON parsing fails
+function extractItemsManually(text, currencySymbol) {
+    const lines = text.split('\n');
+    const items = [];
+    let fullText = text;
+    
+    // Simple regex patterns to identify item lines
+    const itemPatterns = [
+        new RegExp(`([^:]+):\\s*[${currencySymbol}]?\\s*(\\d+(?:\\.\\d+)?)`),  // Item: $10.99
+        new RegExp(`([^-]+)-\\s*[${currencySymbol}]?\\s*(\\d+(?:\\.\\d+)?)`),  // Item - $10.99
+        new RegExp(`([^0-9]+)\\s+[${currencySymbol}]?\\s*(\\d+(?:\\.\\d+)?)`)  // Item   $10.99
+    ];
+    
+    // Track previous item for potential discount association
+    let previousItem = null;
+    
+    for (const line of lines) {
+        // Skip empty lines
+        if (!line.trim()) {
+            continue;
+        }
+        
+        // Check if line is a discount
+        const isDiscount = line.includes('値引') || 
+                          line.includes('discount') || 
+                          line.toLowerCase().includes('off') ||
+                          (line.includes('-') && /\d+/.test(line));
+        
+        if (isDiscount) {
+            // Extract discount amount
+            const amountMatch = line.match(/¥(\d+)/) || 
+                               line.match(/(\d+)円/) || 
+                               line.match(/-\s*(\d+)/) || 
+                               null;
+            const percentMatch = line.match(/(\d+)%/) || null;
+            
+            if (amountMatch) {
+                const discountAmount = parseInt(amountMatch[1]);
+                items.push({
+                    name: percentMatch ? 
+                        `Discount (${percentMatch[1]}%)` : 
+                        "Discount",
+                    price: -discountAmount,
+                    isDiscount: true
+                });
+            }
+            
+            continue;
+        }
+        
+        // Skip lines that look like totals or tax
+        if (/total|subtotal|tax|sum|amount|合計|税/i.test(line)) {
+            continue;
+        }
+        
+        // Try each item pattern
+        for (const pattern of itemPatterns) {
+            const match = line.match(pattern);
+            if (match) {
+                const name = match[1].trim();
+                const price = parseFloat(match[2]);
+                
+                if (name && !isNaN(price) && price !== 0) {
+                    // Store as previous item
+                    previousItem = { name, price };
+                    items.push(previousItem);
+                }
+                break;
             }
         }
     }
     
-    // Update the display
-    renderItems();
-    updateTotals();
-    
-    // Notify user
-    if (items.length > 0) {
-        showSnackbar(`Detected ${items.length} items. Please check and assign them`);
-    } else {
-        showSnackbar('No items could be detected. Try uploading a clearer image or add items manually');
-    }
+    return { items, fullText };
 }
 
 // Helper function to clean up item names
@@ -286,7 +420,7 @@ function cleanupItemName(name) {
     let cleaned = name.replace(/^\d+\s+/, '');
     
     // Remove common prefixes often found in Japanese receipts
-    cleaned = cleaned.replace(/^(light|scan|register|no\.)/i, '');
+    cleaned = cleaned.replace(/^(light|scan|register|no\.|商品|品番|番号|ｺｰﾄﾞ|コード)/i, '');
     
     // Remove extra whitespace
     cleaned = cleaned.replace(/\s+/g, ' ').trim();
@@ -317,11 +451,15 @@ function addItem() {
         return;
     }
     
+    // Check if it's a discount
+    const isDiscount = itemName.toLowerCase().includes('discount') || itemPrice < 0;
+    
     // Create new item object
     const newItem = {
         id: Date.now(), // Unique ID using timestamp
         name: itemName,
         price: itemPrice,
+        isDiscount: isDiscount,
         isMine: false,
         isFriend: false,
         isShared: false
@@ -368,31 +506,60 @@ function renderItems() {
     // Determine if using Japanese yen
     const isJapaneseYen = currencySymbol === '¥';
     
+    // Render all items in their original order
     items.forEach(item => {
         const row = document.createElement('tr');
         
+        // Add a class for discount items for styling
+        if (item.isDiscount || item.price < 0) {
+            row.className = 'discount-item';
+        }
+        
         // Format price appropriately
+        const isDiscount = item.isDiscount || item.price < 0;
+        const priceValue = isDiscount ? Math.abs(item.price) : item.price;
         const formattedPrice = isJapaneseYen ? 
-            Math.round(item.price).toLocaleString() : 
-            item.price.toFixed(2);
+            Math.round(priceValue).toLocaleString() : 
+            priceValue.toFixed(2);
         
         if (isEditMode) {
-            row.className = 'editable';
-            row.innerHTML = `
-                <td><input type="text" value="${item.name}" onchange="updateItemName('${item.id}', this.value)"></td>
-                <td><input type="number" value="${isJapaneseYen ? Math.round(item.price) : item.price.toFixed(2)}" step="${isJapaneseYen ? '1' : '0.01'}" onchange="updateItemPrice('${item.id}', this.value)"></td>
-                <td><input type="checkbox" class="mine-check" data-id="${item.id}" ${item.isMine ? 'checked' : ''}></td>
-                <td><input type="checkbox" class="friend-check" data-id="${item.id}" ${item.isFriend ? 'checked' : ''}></td>
-                <td><input type="checkbox" class="shared-check" data-id="${item.id}" ${item.isShared ? 'checked' : ''}></td>
-            `;
+            row.className += ' editable';
+            
+            if (isDiscount) {
+                row.innerHTML = `
+                    <td><input type="text" value="${item.name}" onchange="updateItemName('${item.id}', this.value)"></td>
+                    <td><input type="number" value="${isJapaneseYen ? Math.round(Math.abs(item.price)) : Math.abs(item.price).toFixed(2)}" step="${isJapaneseYen ? '1' : '0.01'}" onchange="updateDiscountPrice('${item.id}', this.value)"></td>
+                    <td><input type="checkbox" class="mine-check" data-id="${item.id}" ${item.isMine ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="friend-check" data-id="${item.id}" ${item.isFriend ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="shared-check" data-id="${item.id}" ${item.isShared ? 'checked' : ''}></td>
+                `;
+            } else {
+                row.innerHTML = `
+                    <td><input type="text" value="${item.name}" onchange="updateItemName('${item.id}', this.value)"></td>
+                    <td><input type="number" value="${isJapaneseYen ? Math.round(item.price) : item.price.toFixed(2)}" step="${isJapaneseYen ? '1' : '0.01'}" onchange="updateItemPrice('${item.id}', this.value)"></td>
+                    <td><input type="checkbox" class="mine-check" data-id="${item.id}" ${item.isMine ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="friend-check" data-id="${item.id}" ${item.isFriend ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="shared-check" data-id="${item.id}" ${item.isShared ? 'checked' : ''}></td>
+                `;
+            }
         } else {
-            row.innerHTML = `
-                <td>${item.name}</td>
-                <td>${currencySymbol}${formattedPrice}</td>
-                <td><input type="checkbox" class="mine-check" data-id="${item.id}" ${item.isMine ? 'checked' : ''}></td>
-                <td><input type="checkbox" class="friend-check" data-id="${item.id}" ${item.isFriend ? 'checked' : ''}></td>
-                <td><input type="checkbox" class="shared-check" data-id="${item.id}" ${item.isShared ? 'checked' : ''}></td>
-            `;
+            if (isDiscount) {
+                row.innerHTML = `
+                    <td>${item.name}</td>
+                    <td>${currencySymbol}${formattedPrice} (-)</td>
+                    <td><input type="checkbox" class="mine-check" data-id="${item.id}" ${item.isMine ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="friend-check" data-id="${item.id}" ${item.isFriend ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="shared-check" data-id="${item.id}" ${item.isShared ? 'checked' : ''}></td>
+                `;
+            } else {
+                row.innerHTML = `
+                    <td>${item.name}</td>
+                    <td>${currencySymbol}${formattedPrice}</td>
+                    <td><input type="checkbox" class="mine-check" data-id="${item.id}" ${item.isMine ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="friend-check" data-id="${item.id}" ${item.isFriend ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="shared-check" data-id="${item.id}" ${item.isShared ? 'checked' : ''}></td>
+                `;
+            }
         }
         
         tableBody.appendChild(row);
@@ -465,6 +632,9 @@ function updateItemName(itemId, newName) {
     const item = items.find(i => i.id == itemId);
     if (item) {
         item.name = newName;
+        
+        // Update isDiscount flag if name contains "discount"
+        item.isDiscount = item.price < 0 || newName.toLowerCase().includes('discount');
     }
 }
 
@@ -474,6 +644,21 @@ function updateItemPrice(itemId, newPrice) {
     
     if (item && !isNaN(price)) {
         item.price = price;
+        
+        // Update isDiscount flag if price is negative
+        item.isDiscount = price < 0 || (item.name && item.name.toLowerCase().includes('discount'));
+        
+        updateTotals();
+    }
+}
+
+function updateDiscountPrice(itemId, newPrice) {
+    const item = items.find(i => i.id == itemId);
+    const absolutePrice = parseFloat(newPrice);
+    
+    if (item && !isNaN(absolutePrice)) {
+        // Store discount as negative value
+        item.price = -absolutePrice;
         updateTotals();
     }
 }
@@ -594,6 +779,33 @@ function saveReceipt() {
     showSnackbar('Receipt saved successfully!');
 }
 
+// Function to load a saved receipt
+function loadReceipt(receiptId) {
+    const receipt = receipts.find(r => r.id === receiptId);
+    
+    if (!receipt) return;
+    
+    if (confirm(`Load receipt "${receipt.name}"? Current items will be cleared.`)) {
+        items = [...receipt.items];
+        
+        // If the receipt has a tax rate, use it
+        if (receipt.taxRate !== undefined) {
+            taxRate = receipt.taxRate;
+            document.getElementById('tax-rate').value = taxRate;
+            document.getElementById('tax-info').textContent = `${taxRate}% tax is applied automatically to the total`;
+        }
+        
+        // If the receipt has a currency and the selector exists, set it
+        if (receipt.currency && document.getElementById('currency-symbol')) {
+            document.getElementById('currency-symbol').value = receipt.currency;
+        }
+        
+        renderItems();
+        updateTotals();
+        showSnackbar(`Loaded receipt: ${receipt.name}`);
+    }
+}
+
 // Function to load saved receipts from local storage
 function loadSavedReceipts() {
     const savedReceipts = localStorage.getItem('receipts');
@@ -601,6 +813,58 @@ function loadSavedReceipts() {
     if (savedReceipts) {
         receipts = JSON.parse(savedReceipts);
         renderHistory();
+    }
+}
+
+// Function to save Azure API settings
+function saveApiSettings() {
+    const endpoint = document.getElementById('azure-endpoint').value.trim();
+    const apiKey = document.getElementById('azure-key').value.trim();
+    const model = document.getElementById('azure-model').value.trim();
+    
+    if (!endpoint || !apiKey) {
+        showSnackbar('Please enter both Azure endpoint and API key');
+        return;
+    }
+    
+    // Save to global variables
+    AZURE_OPENAI_ENDPOINT = endpoint;
+    AZURE_OPENAI_API_KEY = apiKey;
+    
+    if (model) {
+        AZURE_OPENAI_MODEL = model;
+    }
+    
+    // Save to localStorage (encrypted would be better for production)
+    localStorage.setItem('azure_openai_endpoint', endpoint);
+    localStorage.setItem('azure_openai_api_key', apiKey);
+    localStorage.setItem('azure_openai_model', AZURE_OPENAI_MODEL);
+    
+    showSnackbar('Azure OpenAI API settings saved successfully');
+    
+    // Close the details section
+    document.querySelector('.api-settings details').removeAttribute('open');
+}
+
+// Function to load Azure API settings from localStorage
+function loadApiSettings() {
+    const savedEndpoint = localStorage.getItem('azure_openai_endpoint');
+    const savedApiKey = localStorage.getItem('azure_openai_api_key');
+    const savedModel = localStorage.getItem('azure_openai_model');
+    
+    if (savedEndpoint && savedApiKey) {
+        // Set global variables
+        AZURE_OPENAI_ENDPOINT = savedEndpoint;
+        AZURE_OPENAI_API_KEY = savedApiKey;
+        
+        // Set form fields
+        document.getElementById('azure-endpoint').value = savedEndpoint;
+        document.getElementById('azure-key').value = savedApiKey;
+    }
+    
+    if (savedModel) {
+        AZURE_OPENAI_MODEL = savedModel;
+        document.getElementById('azure-model').value = savedModel;
     }
 }
 
@@ -647,33 +911,6 @@ function renderHistory() {
     
     if (sortedReceipts.length === 0) {
         historyList.innerHTML = '<li>No saved receipts</li>';
-    }
-}
-
-// Function to load a saved receipt
-function loadReceipt(receiptId) {
-    const receipt = receipts.find(r => r.id === receiptId);
-    
-    if (!receipt) return;
-    
-    if (confirm(`Load receipt "${receipt.name}"? Current items will be cleared.`)) {
-        items = [...receipt.items];
-        
-        // If the receipt has a tax rate, use it
-        if (receipt.taxRate !== undefined) {
-            taxRate = receipt.taxRate;
-            document.getElementById('tax-rate').value = taxRate;
-            document.getElementById('tax-info').textContent = `${taxRate}% tax is applied automatically to the total`;
-        }
-        
-        // If the receipt has a currency and the selector exists, set it
-        if (receipt.currency && document.getElementById('currency-symbol')) {
-            document.getElementById('currency-symbol').value = receipt.currency;
-        }
-        
-        renderItems();
-        updateTotals();
-        showSnackbar(`Loaded receipt: ${receipt.name}`);
     }
 }
 

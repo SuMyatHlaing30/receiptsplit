@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <!-- Removed Tesseract.js as we're now using Azure OpenAI Vision -->
 </head>
 <body>
     <div class="app-container">
@@ -34,9 +34,9 @@
                         <div class="language-selector">
                             <label for="ocr-language">OCR Language:</label>
                             <select id="ocr-language">
-                                <option value="eng">English</option>
-                                <option value="jpn">Japanese</option>
-                                <option value="eng+jpn">English + Japanese</option>
+                                <option value="en">English</option>
+                                <option value="ja" selected>Japanese</option>
+                                <option value="en+ja">English + Japanese</option>
                             </select>
                         </div>
                         
@@ -51,6 +51,32 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- API Key Settings -->
+                <div class="api-settings">
+                    <details>
+                        <summary>Azure OpenAI Vision Settings</summary>
+                        <div class="api-form">
+                            <div class="input-group">
+                                <label for="azure-endpoint">Azure OpenAI Endpoint:</label>
+                                <input type="text" id="azure-endpoint" placeholder="https://your-resource.openai.azure.com/">
+                            </div>
+                            <div class="input-group">
+                                <label for="azure-key">API Key:</label>
+                                <input type="password" id="azure-key" placeholder="Enter your Azure OpenAI API key">
+                            </div>
+                            <div class="input-group">
+                                <label for="azure-model">Model Deployment Name:</label>
+                                <input type="text" id="azure-model" placeholder="gpt-4o" value="gpt-4o">
+                                <div class="model-info">Use the deployment name of your vision-capable model (e.g., gpt-4o, gpt-4-vision)</div>
+                            </div>
+                            <button id="save-api-settings" class="secondary-btn">
+                                <i class="fas fa-save"></i> Save Settings
+                            </button>
+                        </div>
+                    </details>
+                </div>
+                
                 <div id="loading-indicator" class="hidden">
                     <div class="spinner"></div>
                     <p>Processing receipt... This may take a few moments.</p>
@@ -78,9 +104,9 @@
                 <h2><i class="fas fa-list"></i> Detected Items</h2>
                 <div class="tax-settings">
                     <label for="tax-rate">Tax Rate (%): </label>
-                    <input type="number" id="tax-rate" value="10" min="0" max="30" step="0.1">
+                    <input type="number" id="tax-rate" value="8" min="0" max="30" step="0.1">
                     <button id="apply-tax" class="small-btn">Apply</button>
-                    <span class="tax-info" id="tax-info">10% tax is applied automatically to the total</span>
+                    <span class="tax-info" id="tax-info">8% tax is applied automatically to the total</span>
                 </div>
                 <div class="controls">
                     <button id="add-missing-item" class="secondary-btn">

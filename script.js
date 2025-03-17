@@ -562,6 +562,7 @@ function toggleEditMode() {
 }
 
 // Function to render all items in the table
+// Modified renderItems function to add click event to item names
 function renderItems() {
     const tableBody = document.getElementById('items-body');
     tableBody.innerHTML = '';
@@ -612,7 +613,7 @@ function renderItems() {
         } else {
             if (isDiscount) {
                 row.innerHTML = `
-                    <td>${item.name}</td>
+                    <td class="item-name-cell" data-id="${item.id}">${item.name}</td>
                     <td>${currencySymbol}${formattedPrice} (-)</td>
                     <td><input type="checkbox" class="mine-check" data-id="${item.id}" ${item.isMine ? 'checked' : ''}></td>
                     <td><input type="checkbox" class="friend-check" data-id="${item.id}" ${item.isFriend ? 'checked' : ''}></td>
@@ -620,7 +621,7 @@ function renderItems() {
                 `;
             } else {
                 row.innerHTML = `
-                    <td>${item.name}</td>
+                    <td class="item-name-cell" data-id="${item.id}">${item.name}</td>
                     <td>${currencySymbol}${formattedPrice}</td>
                     <td><input type="checkbox" class="mine-check" data-id="${item.id}" ${item.isMine ? 'checked' : ''}></td>
                     <td><input type="checkbox" class="friend-check" data-id="${item.id}" ${item.isFriend ? 'checked' : ''}></td>
@@ -630,6 +631,20 @@ function renderItems() {
         }
         
         tableBody.appendChild(row);
+    });
+    
+    // Add click event listeners to item names for Google search
+    document.querySelectorAll('.item-name-cell').forEach(cell => {
+        cell.style.cursor = 'pointer';
+        cell.title = 'Click to search this item on Google Images';
+        
+        cell.addEventListener('click', function() {
+            const itemId = this.getAttribute('data-id');
+            const item = items.find(i => i.id == itemId);
+            if (item) {
+                searchItemOnGoogle(item.name);
+            }
+        });
     });
     
     // Add event listeners to checkboxes
@@ -693,6 +708,30 @@ function renderItems() {
         });
     });
 }
+
+// Add some CSS to make the item name cell look clickable
+document.addEventListener('DOMContentLoaded', function() {
+    // Create a style element
+    const style = document.createElement('style');
+    
+    // Add CSS rules
+    style.textContent = `
+        .item-name-cell {
+            color: #0066cc;
+            text-decoration: underline;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        
+        .item-name-cell:hover {
+            color: #004080;
+            background-color: rgba(0, 102, 204, 0.1);
+        }
+    `;
+    
+    // Append to the head
+    document.head.appendChild(style);
+});
 
 // Functions to update item details when in edit mode
 function updateItemName(itemId, newName) {
@@ -991,4 +1030,16 @@ function showSnackbar(message) {
     setTimeout(function() { 
         snackbar.className = snackbar.className.replace('show', ''); 
     }, 3000);
+}
+function searchItemOnGoogle(itemName) {
+  if (!itemName) return;
+  
+  // Clean up the item name to make it more search-friendly
+  const cleanedName = itemName.trim();
+  
+  // Create a Google Images search URL
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(cleanedName)}&tbm=isch`;
+  
+  // Open in a new tab
+  window.open(searchUrl, '_blank');
 }

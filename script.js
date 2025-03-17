@@ -97,6 +97,17 @@ function handleSelectedImage(file) {
         
         // Store the file reference globally for later processing
         window.selectedReceiptFile = file;
+        
+        // Ensure the photoInput element has the file
+        const photoInput = document.getElementById('receipt-photo');
+        if (photoInput && (!photoInput.files || photoInput.files.length === 0)) {
+            // Create a new DataTransfer object
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            
+            // Set the files property
+            photoInput.files = dataTransfer.files;
+        }
     };
     
     reader.onerror = function(error) {
@@ -127,8 +138,17 @@ function applyTaxRate() {
 async function processReceiptImage() {
     const photoInput = document.getElementById('receipt-photo');
     
-    if (!photoInput.files || !photoInput.files[0]) {
+    // First check if there's a file in the input element
+    if ((!photoInput.files || !photoInput.files[0]) && !window.selectedReceiptFile) {
         showSnackbar('Please upload a receipt image first');
+        return;
+    }
+    
+    // Use either the file from input or the one stored in window
+    const fileToProcess = photoInput.files && photoInput.files[0] ? photoInput.files[0] : window.selectedReceiptFile;
+    
+    if (!fileToProcess) {
+        showSnackbar('Unable to access the receipt image. Please try uploading again.');
         return;
     }
     
@@ -157,12 +177,12 @@ async function processReceiptImage() {
             document.getElementById('currency-symbol').value : '¥';
             
         // Convert the image to base64
-        const file = photoInput.files[0];
-        const base64Image = await getBase64(file);
+        const base64Image = await getBase64(fileToProcess);
         
         // Update progress
         progressElement.style.width = '50%';
         
+        // Rest of the function remains the same...
         // Call Azure OpenAI Vision API
         const result = await callAzureOpenAIVision(base64Image, language, currencySymbol);
         
